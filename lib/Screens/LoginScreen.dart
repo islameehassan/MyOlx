@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:modal_progress_hud_nsn/modal_progress_hud_nsn.dart';
+import 'package:myolx/Screens/BrandsScreen.dart';
 import 'package:myolx/components/roundedbutton.dart';
 import 'package:myolx/Utilities/DatabaseManager.dart';
 import 'package:myolx/Screens/SignUpScreen.dart';
@@ -33,25 +34,29 @@ class _LoginScreenState extends State<LoginScreen> {
     message = "";
     loadingSpinner = false;
   }
+
   Future<void> logOnDatabase() async{
     String tempMessage = "";
 
     setState(() {
       loadingSpinner = true;
       message = "";
-      print("Email: $emailAddress");
-      print("Password: $password");
     });
 
-    if(emailAddress.isEmpty || password.isEmpty){
-        tempMessage = "Please enter your email address and password";
+    if(emailAddress.isEmpty) {
+      tempMessage = "Please enter your email address";
     }
-    else if(!emailAddress.contains('@') && !emailAddress.contains('.')){ // TODO: Add more validation
-        tempMessage = "Please enter a valid email address";
+    else if(password.isEmpty){
+      tempMessage = "Please enter your password";
+    }
+    else if(RegExp(r"^\w+@\w+\.\w+$").hasMatch(emailAddress) == false
+        && RegExp(r"^\w+@\w+\.\w+\.\w+$").hasMatch(emailAddress) == false){
+      tempMessage = "Please enter a valid email address";
     }
     else{
       String loginMessage = await databaseManager.authenticateUser(emailAddress, password);
       if(loginMessage == "Success"){
+        Navigator.pushNamed(context, LoginScreen.id);
           // TODO: Navigate to the home screen and pass the user's email address and then remove the email address and password from the state
       }
       else{
@@ -157,7 +162,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     RoundedButton(
                       text: "SIGN UP",
                       press: () {
-                        Navigator.pushNamed(context, SignUpScreen.id);
+                        Navigator.pushNamed(context, BrandsScreen.id);
                       },
                     ),
                   ],

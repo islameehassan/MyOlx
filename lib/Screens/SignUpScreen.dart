@@ -58,7 +58,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
     setState(() {
       loadingSpinner = true;
       message = "";
-      print("emailAddress: $emailAddress");
     });
     tempMessage = await databaseManager.checkIfUserExists(emailAddress);
     if(tempMessage == "Found") {
@@ -67,7 +66,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
     else if(emailAddress.isEmpty){
       tempMessage = "Please enter an email address";
     }
-    else if(!emailAddress.contains('@') && !emailAddress.contains('.')){ // TODO: Add more validation
+    else if(RegExp(r"^\w+@\w+\.\w+$").hasMatch(emailAddress) == false
+        && RegExp(r"^\w+@\w+\.\w+\.\w+$").hasMatch(emailAddress) == false)
+    {
       tempMessage = "Please enter a valid email address";
     }
     else if(username.isEmpty){
@@ -82,12 +83,19 @@ class _SignUpScreenState extends State<SignUpScreen> {
             emailAddress, username, password, gender, birthdate);
         tempMessage = "User successfully registered";
         Map<String, List<String>> brandModel = await databaseManager.getBrands();
-        Navigator.push(context, MaterialPageRoute(builder: (context) => Brands(username: username, brandModels: brandModel)));
+        // ignore: use_build_context_synchronously
+        Navigator.push(
+            context,
+            MaterialPageRoute(
+                builder: (context) => BrandsScreen(
+                  databaseManager: databaseManager,
+                  brandModels: brandModel,
+                ))
+        );
       }
       catch(e){
         tempMessage = "Error: $e";
       }
-      // TODO: Navigate to the home screen and pass the user's email address and then remove the email address and password from the state
     }
     setState(() {
       message = tempMessage;
