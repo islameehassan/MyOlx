@@ -1,15 +1,20 @@
+import 'dart:ffi';
+
+import 'package:dartx/dartx.dart';
 import 'package:flutter/material.dart';
-import 'package:modal_progress_hud_nsn/modal_progress_hud_nsn.dart';
-import 'package:search_choices/search_choices.dart';
+import 'package:myolx/Screens/AreasScreen.dart';
+import 'package:myolx/Screens/LoginScreen.dart';
+import 'package:myolx/Utilities/carAd.dart';
 import 'package:myolx/Utilities/DatabaseManager.dart';
-import 'package:myolx/components/roundedbutton.dart';
-import 'package:multi_select_flutter/multi_select_flutter.dart';
+import 'package:myolx/Components/endDrawer.dart';
+import 'package:myolx/Components/adListTile.dart';
+import 'package:infinite_scroll_pagination/infinite_scroll_pagination.dart';
 
 // ignore_for_file: prefer_const_constructors
 // ignore_for_file: prefer_const_literals_to_create_immutables
 
 class HomeScreen extends StatefulWidget {
-  HomeScreen({Key? key, required this.databaseManager}) : super(key: key);
+  const HomeScreen({Key? key, required this.databaseManager}) : super(key: key);
   static const id = 'HomeScreen';
   final DatabaseManager databaseManager;
 
@@ -18,8 +23,11 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  // drawer that will be pulled from the right side of the screen
-  late final databaseManager;
+  final DatabaseManager _databaseManager = DatabaseManager();
+  final PagingController<int, adListTile> _pagingController =
+      PagingController(firstPageKey: 0);
+
+  late final DatabaseManager databaseManager;
   late final Map<String, List<String>> brandModels;
   late final List<String> brands;
   late final List<String> locations;
@@ -31,10 +39,55 @@ class _HomeScreenState extends State<HomeScreen> {
     databaseManager = widget.databaseManager;
     locations = databaseManager.locations;
     getBrands();
+    _pagingController.addPageRequestListener((pageKey) {
+      _fetchPage(pageKey);
+    });
+  }
+
+  Future<void> _fetchPage(int pageKey) async {
+    try {
+      if (_databaseManager.isConnected == false) {
+        await _databaseManager.authenticateUser(
+            'islamee@aucegypt.edu', 'helloPHP');
+      }
+      final newItems = await _databaseManager.getAds(
+          selectedBrand,
+          selectedLocation,
+          selectedYear,
+          selectedBodyType,
+          selectedMinPrice,
+          selectedMaxPrice,
+          selectedMinMileage,
+          selectedMaxMileage,
+          selectedPaymentMethod,
+          selectedExtraFeatures,
+          pageKey);
+
+      final items = _buildItems(newItems.length, newItems);
+      final isLastPage = newItems.length < 10;
+      if (isLastPage) {
+        print('last page');
+        print(items.length);
+        _pagingController.appendLastPage(items);
+      } else {
+        final nextPageKey = pageKey + items.length;
+        _pagingController.appendPage(items, nextPageKey);
+      }
+    } catch (error) {
+      print('error: $error');
+      _pagingController.error = error;
+    }
+  }
+
+  List<adListTile> _buildItems(int count, List<CarAd> ads) {
+    return List.generate(
+      count,
+      (index) => adListTile(carAd: ads[index]),
+    );
   }
 
   void getBrands() {
-    brandModels =  databaseManager.brandModels;
+    brandModels = databaseManager.brandModels;
     List<String> brands = [];
     for (var i = 0; i < brandModels.length; i++) {
       brands.add(brandModels.keys.elementAt(i));
@@ -44,11 +97,80 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
+  // Variables for filtering the ads
+  String selectedBrand = "Honda";
+  String selectedLocation = "";
+  String selectedYear = '';
+  String selectedBodyType = '';
+  List<String> selectedExtraFeatures = [];
+  String selectedMinPrice = '';
+  String selectedMaxPrice = '';
+  String selectedMinMileage = '';
+  String selectedMaxMileage = '';
+  String selectedPaymentMethod = "";
+
+  // Variable to control which brand's models to show
+  String selectedBrandToFilterForModels = "Honda";
+
+  // Variable to refresh the page after filtering
+  bool drawerCalled = false;
+
   @override
   Widget build(BuildContext context) {
+    function(
+            selectedBrand,
+            selectedLocation,
+            selectedYear,
+            selectedBodyType,
+            selectedMinPrice,
+            selectedMaxPrice,
+            selectedMinMileage,
+            selectedMaxMileage,
+            selectedPaymentMethod,
+            selectedExtraFeatures) =>
+        setState(() {
+          setState(() {
+            this.selectedBrand = selectedBrand;
+            if (this.selectedBrand.isNotNullOrEmpty) {
+              selectedBrandToFilterForModels = selectedBrand;
+            }
+            this.selectedLocation = selectedLocation;
+            this.selectedYear = selectedYear;
+            this.selectedBodyType = selectedBodyType;
+            this.selectedMinPrice = selectedMinPrice;
+            this.selectedMaxPrice = selectedMaxPrice;
+            this.selectedMinMileage = selectedMinMileage;
+            this.selectedMaxMileage = selectedMaxMileage;
+            this.selectedPaymentMethod = selectedPaymentMethod;
+            this.selectedExtraFeatures = selectedExtraFeatures;
+            drawerCalled = true;
+          });
+        });
+
+    setState(() {
+      if (drawerCalled) {
+        _pagingController.refresh();
+        drawerCalled = false;
+      }
+    });
+
+    @override
+    void dispose() {
+      print('dispose');
+      _pagingController.dispose();
+      super.dispose();
+    }
+
     return Scaffold(
-      endDrawer: myDrawer(databaseManager: databaseManager),
+      resizeToAvoidBottomInset: false,
+      backgroundColor: Colors.grey[200],
+      drawer: startDrawer(
+        databaseManager: databaseManager,
+      ),
+      endDrawer: myEndDrawer(
+          databaseManager: databaseManager, passDataToParent: function),
       appBar: AppBar(
+        backgroundColor: Colors.red,
         actions: [
           Builder(
             builder: (context) => IconButton(
@@ -59,489 +181,387 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
         ],
-        title: const Text('MyOLX'),
+        title: Text("Home"),
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(14.0),
+        child: SafeArea(
+          child: PageView(
+            children: [
+              SingleChildScrollView(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // add a row of buttons that show different capabilities of the app (Show adds and top sellers, search sellers, top 5 areas, etc.)
+                    const SizedBox(
+                      height: 10,
+                    ),
+                    Text(
+                      'Top 5 Sellers in Cairo',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    SizedBox(
+                      height: 300,
+                      child: FutureBuilder(
+                        future: databaseManager.getTopSellers(),
+                        builder: (context,
+                            AsyncSnapshot<List<List<String>>> snapshot) {
+                          if (snapshot.hasData) {
+                            return ListView.builder(
+                              scrollDirection: Axis.horizontal,
+                              itemCount: snapshot.data!.length,
+                              itemBuilder: (context, index) {
+                                return Container(
+                                  margin: const EdgeInsets.all(10),
+                                  child: userInfo(
+                                    name: snapshot.data![index][0],
+                                    phoneNo: snapshot.data![index][1],
+                                    noOfAds: snapshot.data![index][2],
+                                    avgPrice: snapshot.data![index][3],
+                                  ),
+                                );
+                              },
+                            );
+                          } else {
+                            return const Center(
+                              child: CircularProgressIndicator(
+                                color: Colors.red,
+                              ),
+                            );
+                          }
+                        },
+                      ),
+                    ),
+                    Divider(
+                      color: Colors.black,
+                      thickness: 2,
+                    ),
+                    Text(
+                      '$selectedBrandToFilterForModels Models in Cairo',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    SizedBox(
+                      height: 200,
+                      child: FutureBuilder(
+                        future: databaseManager.getModelsInfoforBrand(
+                            selectedBrandToFilterForModels),
+                        builder: (context,
+                            AsyncSnapshot<Map<String, Pair<String, String>>>
+                                snapshot) {
+                          if (snapshot.hasData) {
+                            return ListView.builder(
+                              scrollDirection: Axis.horizontal,
+                              itemCount: snapshot.data!.length,
+                              itemBuilder: (context, index) {
+                                return Container(
+                                  margin: const EdgeInsets.all(10),
+                                  child: modelInfo(
+                                    model: snapshot.data!.keys.elementAt(index),
+                                    avgPrice: snapshot.data!.values
+                                        .elementAt(index)
+                                        .first,
+                                    noOfAds: snapshot.data!.values
+                                        .elementAt(index)
+                                        .second,
+                                  ),
+                                );
+                              },
+                            );
+                          } else {
+                            return const Center(
+                              child: CircularProgressIndicator(
+                                color: Colors.red,
+                              ),
+                            );
+                          }
+                        },
+                      ),
+                    ),
+                    Divider(
+                      color: Colors.black,
+                      thickness: 2,
+                    ),
+                    // Set a title for the list
+                    const Text(
+                      'Filterd Results',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.all(8.0),
+                      child: PagedListView<int, adListTile>(
+                        physics: NeverScrollableScrollPhysics(),
+                        shrinkWrap: true,
+                        pagingController: _pagingController,
+                        builderDelegate: PagedChildBuilderDelegate<adListTile>(
+                          itemBuilder: (context, item, index) => item,
+                          firstPageErrorIndicatorBuilder: (context) =>
+                              const Center(
+                              child: Text(
+                              'Error Loading First Page',
+                              style: TextStyle(
+                                color: Colors.grey,
+                                fontSize: 20,
+                              ),
+                            ),
+                          ),
+                          noItemsFoundIndicatorBuilder: (context) =>
+                              const Center(
+                            child: Text(
+                              'No Items Found',
+                              style: TextStyle(
+                                color: Colors.grey,
+                                fontSize: 20,
+                              ),
+                            ),
+                          ),
+                          firstPageProgressIndicatorBuilder: (context) =>
+                              const Center(
+                            child: CircularProgressIndicator(
+                              color: Colors.red,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
 }
 
-
-
-
-
-
-/*
-* This is the drawer that will be pulled from the right side of the screen
-*/
-
-
-
-class myDrawer extends StatefulWidget {
-  const myDrawer({super.key, required this.databaseManager});
-  final DatabaseManager databaseManager;
-  @override
-  State<myDrawer> createState() => _myDrawerState();
-}
-
-class _myDrawerState extends State<myDrawer> with AutomaticKeepAliveClientMixin{
-  @override
-  bool get wantKeepAlive => true;
-  late final DatabaseManager databaseManager;
-  late final List<String> brands;
-  late final List<String> locations;
-
-
-
-  final List<String> bodyTypes = [
-    'Sedan',
-    'SUV',
-    'Pickup',
-    '4X4',
-    'Hatchback',
-    'Coupe',
-    'Van/Bus',
-    'Cabriolet',
-    'Other',
-  ];
-
-  List<RadioListTile> bodyTypeRadioListTiles(){
-    List<RadioListTile> bodyTypeRadioListTiles = [];
-    for (var i = 0; i < bodyTypes.length; i++) {
-      bodyTypeRadioListTiles.add(
-        RadioListTile(
-          activeColor: Colors.pinkAccent,
-          value: bodyTypes[i],
-          groupValue: selectedBodyType,
-          onChanged: (value) {
-            setState(() {
-              selectedBodyType = value.toString();
-            });
-          },
-          title: Text(bodyTypes[i]),
-        ),
-      );
-    }
-    return bodyTypeRadioListTiles;
-  }
-
-  List<DropdownMenuItem<int>> years(){
-    List<DropdownMenuItem<int>> years = [];
-    for (var i = 2000; i <= 2023; i++) {
-      years.add(
-        DropdownMenuItem(
-          value: i,
-          child: Text(i.toString()),
-        ),
-      );
-    }
-    return years;
-  }
-
-  List<DropdownMenuItem<String>> getBrands(){
-    List<DropdownMenuItem<String>> brands = [];
-    for (var i = 0; i < this.brands.length; i++) {
-      brands.add(
-        DropdownMenuItem(
-          value: this.brands[i],
-          child: Text(this.brands[i]),
-        ),
-      );
-    }
-    return brands;
-  }
-
-  List<DropdownMenuItem<String>> getLocations(){
-    List<DropdownMenuItem<String>> locations = [];
-    for (var i = 0; i < this.locations.length; i++) {
-      locations.add(
-        DropdownMenuItem(
-          value: this.locations[i],
-          child: Text(this.locations[i]),
-        ),
-      );
-    }
-    return locations;
-  }
-
-  List<DropdownMenuItem<String>> getExtraFeatures(){
-    List<DropdownMenuItem<String>> extraFeatures = [];
-    for (var i = 0; i < databaseManager.extraFeatures.length; i++) {
-      extraFeatures.add(
-        DropdownMenuItem(
-          value: databaseManager.extraFeatures[i],
-          child: Text(databaseManager.extraFeatures[i]),
-        ),
-      );
-    }
-    return extraFeatures;
-  }
-
-  late String selectedBodyType;
-  late String selectedBrand;
-  late String selectedLocation;
-  late int selectedMinYear;
-  List<String> selectedExtraFeatures = [];
-  late String username;
-
-  @override
-  void initState() {
-    super.initState();
-    databaseManager = widget.databaseManager;
-    brands = widget.databaseManager.brandModels.keys.toList();
-    locations = widget.databaseManager.locations;
-    selectedBrand = brands[0];
-    selectedLocation = locations[0];
-    selectedMinYear = 2000;
-    selectedBodyType = bodyTypes[0];
-    username = databaseManager.username;
-  }
-
-  int minPrice = 0;
-  int maxPrice = 10000000;
-  int minMileage = 0;
-  int maxMileage = 1000000;
-  String selectedPaymentMethod = 'Cash';
+class userInfo extends StatelessWidget {
+  const userInfo(
+      {Key? key,
+      required this.name,
+      required this.phoneNo,
+      required this.avgPrice,
+      required this.noOfAds})
+      : super(key: key);
+  final String name;
+  final String phoneNo;
+  final String avgPrice;
+  final String noOfAds;
 
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      child: Stack(
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: 10,
+      ),
+      width: 280,
+      height: 20,
+      decoration: BoxDecoration(
+        color: Colors.grey[800],
+        borderRadius: BorderRadius.circular(10),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.5),
+            spreadRadius: 2,
+            blurRadius: 1,
+            offset: const Offset(0, 3), // changes position of shadow
+          ),
+        ],
+      ),
+      margin: const EdgeInsets.symmetric(
+        vertical: 10,
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Drawer(
-            width: 250,
-            semanticLabel: 'Filters',
-            child: Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: ListView(
-                addAutomaticKeepAlives: true,
-                children: [
-                  // Welcome Message and Logout Button
-                  myDrawerHeader(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Flexible(
-                          child: Text(
-                            'Welcome $username',
-                            style: TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.black,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        const Text(
-                          'Please select the filters you want to apply',
-                          style: TextStyle(
-                            fontSize: 15,
-                            color: Colors.black,
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        ElevatedButton(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.pinkAccent,
-                          ),
-                          onPressed: () {
-                            Navigator.of(context).pop();
-                          },
-                          child: const Text('Apply Filters'),
-                        ),
-                      ],
-                    ),
-                  ),
-                  ListTile(
-                    leading: const Icon(Icons.branding_watermark),
-                    title: const Text(
-                      'Brand',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black,
-                      ),
-                    ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.only(left: 10, right: 10),
-                    child: SearchChoices.single(
-                      items: getBrands(),
-                      value: selectedBrand,
-                      hint: 'Select Brand',
-                      searchHint: 'Select Brand',
-                      onChanged: (value) {
-                        setState(() {
-                          selectedBrand = value.toString();
-                        });
-                      },
-                      isExpanded: true,
-                    ),
-                  ),
-                  Divider(
-                    color: Colors.black,
-                    thickness: 1.2,
-                  ),
-                  ListTile(
-                    leading: const Icon(Icons.location_on),
-                    title: const Text(
-                      'Location',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black,
-                      ),
-                    ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.only(left: 10, right: 10),
-                    child: SearchChoices.single(
-                      items: getLocations(),
-                      value: selectedLocation,
-                      hint: 'Select Location',
-                      searchHint: 'Select Location',
-                      onChanged: (value) {
-                        setState(() {
-                          selectedLocation = value.toString();
-                        });
-                      },
-                      isExpanded: true,
-                    ),
-                  ),
-                  Divider(
-                    color: Colors.black,
-                    thickness: 1.2,
-                  ),
-                  ListTile(
-                    leading: const Icon(Icons.calendar_today),
-                    title: const Text(
-                      'Year',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black,
-                      ),
-                    ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.only(left: 10, right: 10),
-                    child: SearchChoices.single(
-                      items: years(),
-                      value: selectedMinYear,
-                      hint: 'Select Year',
-                      searchHint: 'Select Year',
-                      onChanged: (value) {
-                        setState(() {
-                          selectedMinYear = value as int;
-                        });
-                      },
-                      isExpanded: true,
-                    ),
-                  ),
-                  Divider(
-                    color: Colors.black,
-                    thickness: 1.2,
-                  ),
-                  ListTile(
-                    leading: const Icon(Icons.directions_car),
-                    title: const Text(
-                      'Body Type',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black,
-                      ),
-                    ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.only(left: 10, right: 10),
-                    child: SearchChoices.single(
-                      items: bodyTypes.map((e) => DropdownMenuItem(
-                        value: e,
-                        child: Text(e),
-                      )).toList(),
-                      value: selectedBodyType,
-                      hint: 'Select Body Type',
-                      searchHint: 'Select Body Type',
-                      onChanged: (value) {
-                        setState(() {
-                          selectedBodyType = value.toString();
-                        });
-                      },
-                      isExpanded: true,
-                    ),
-                  ),
-                  Divider(
-                    color: Colors.black,
-                    thickness: 1.2,
-                  ),
-                  ListTile(
-                    leading: const Icon(Icons.add),
-                    title: const Text(
-                      'Extra Features',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black,
-                      ),
-                    ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.only(left: 10, right: 10),
-                    child: SearchChoices.multiple(
-                      items: getExtraFeatures(),
-                      hint: 'Select Extra Features',
-                      searchHint: 'Select Extra Features',
-                      onChanged: (value) {
-                        setState(() {
-                          selectedExtraFeatures = value;
-                        });
-                      },
-                      isExpanded: true,
-                    ),
-                  ),
-                  Divider(
-                    color: Colors.black,
-                    thickness: 1.2,
-                  ),
-                  ListTile(
-                    leading: const Icon(Icons.attach_money),
-                    title: const Text(
-                      'Price',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black,
-                      ),
-                    ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.only(left: 10, right: 10),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        TextField(
-                          onChanged: (value) {
-                            setState(() {
-                              minPrice = int.parse(value);
-                            });
-                          },
-                          decoration: const InputDecoration(
-                            hintText: 'Min Price',
-                          ),
-                        ),
-                        TextField(
-                          onChanged: (value) {
-                            setState(() {
-                              maxPrice = int.parse(value);
-                            });
-                          },
-                          decoration: const InputDecoration(
-                            hintText: 'Max Price',
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Divider(
-                    color: Colors.black,
-                    thickness: 1.2,
-                  ),
-                  ListTile(
-                    leading: const Icon(Icons.speed),
-                    title: const Text(
-                      'Mileage',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black,
-                      ),
-                    ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.only(left: 10, right: 10),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        TextField(
-                          onChanged: (value) {
-                            setState(() {
-                              minMileage = int.parse(value);
-                            });
-                          },
-                          decoration: const InputDecoration(
-                            hintText: 'Min Mileage',
-                          ),
-                        ),
-                        TextField(
-                          onChanged: (value) {
-                            setState(() {
-                              maxMileage = int.parse(value);
-                            });
-                          },
-                          decoration: const InputDecoration(
-                            hintText: 'Max Mileage',
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Divider(
-                    color: Colors.black,
-                    thickness: 1.2,
-                  ),
-                  // payment options (either cash or installment)
-                  ListTile(
-                    leading: const Icon(Icons.payment),
-                    title: const Text(
-                      'Payment Options',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black,
-                      ),
-                    ),
-                  ),
-                  // three radio buttons (cash, installment, both)
-                  Padding(
-                    padding: const EdgeInsets.only(left: 0, right: 10),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        RadioListTile(
-                          value: 1,
-                          groupValue: selectedPaymentMethod,
-                          onChanged: (value) {
-                            setState(() {
-                              selectedPaymentMethod = value as String;
-                            });
-                          },
-                          title: const Text('Cash'),
-                        ),
-                        RadioListTile(
-                          value: 2,
-                          groupValue: selectedPaymentMethod,
-                          onChanged: (value) {
-                            setState(() {
-                              selectedPaymentMethod = value as String;
-                            });
-                          },
-                          title: const Text('Installment'),
-                        ),
-                        RadioListTile(
-                          value: 3,
-                          groupValue: selectedPaymentMethod,
-                          onChanged: (value) {
-                            setState(() {
-                              selectedPaymentMethod = value as String;
-                            });
-                          },
-                          title: const Text('Both'),
-                        ),
-                      ],
-                    ),
-                  ),
-              ],),
+          Text(
+            name,
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 20,
             ),
+          ),
+          // phone number
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Phone number: ',
+                style: TextStyle(
+                  color: Colors.grey[300],
+                ),
+              ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  Text(
+                    phoneNo,
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          // Avg price and number of ads
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Avg price per Car: ',
+                style: TextStyle(
+                  color: Colors.grey[300],
+                ),
+              ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  Text(
+                    '$avgPrice EGP',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Number of ads: ',
+                style: TextStyle(
+                  color: Colors.grey[300],
+                ),
+              ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  Text(
+                    noOfAds,
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          )
+        ],
+      ),
+    );
+  }
+}
+
+class modelInfo extends StatelessWidget {
+  const modelInfo(
+      {Key? key,
+      required this.model,
+      required this.avgPrice,
+      required this.noOfAds})
+      : super(key: key);
+  final String model;
+  final String avgPrice;
+  final String noOfAds;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: 10,
+      ),
+      width: 280,
+      height: 20,
+      decoration: BoxDecoration(
+        color: Colors.redAccent.shade700,
+        borderRadius: BorderRadius.circular(10),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.5),
+            spreadRadius: 2,
+            blurRadius: 1,
+            offset: const Offset(0, 3), // changes position of shadow
+          ),
+        ],
+      ),
+      margin: const EdgeInsets.symmetric(
+        vertical: 10,
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            model,
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 20,
+            ),
+          ),
+          // phone number
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Avg price per Car: ',
+                style: TextStyle(
+                  color: Colors.grey[300],
+                ),
+              ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  Text(
+                    // add a comma to the price each three digits
+                    '${avgPrice.replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')} EGP',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          // Avg price and number of ads
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Number of ads: ',
+                style: TextStyle(
+                  color: Colors.grey[300],
+                ),
+              ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  Text(
+                    noOfAds,
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
         ],
       ),
@@ -549,24 +569,76 @@ class _myDrawerState extends State<myDrawer> with AutomaticKeepAliveClientMixin{
   }
 }
 
-class myDrawerHeader extends StatelessWidget {
-  myDrawerHeader({Key? key, required this.child}) : super(key: key);
-  final Widget child;
+class startDrawer extends StatelessWidget {
+  const startDrawer({Key? key, required this.databaseManager})
+      : super(key: key);
+  final DatabaseManager databaseManager;
 
   @override
   Widget build(BuildContext context) {
-    return DrawerHeader(
-      decoration: const BoxDecoration(
-        border: Border(
-          bottom: BorderSide(
-            color: Colors.black,
-            width: 1.2,
+    // the user can see also other pages like owners, areas, and models
+    return Drawer(
+      child: ListView(
+        padding: EdgeInsets.zero,
+        children: [
+          const DrawerHeader(
+            decoration: BoxDecoration(
+              color: Colors.redAccent,
+            ),
+            child: Text(
+              'Menu',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 24,
+              ),
+            ),
           ),
-        ),
+          ListTile(
+            leading: const Icon(Icons.home),
+            title: const Text('Home'),
+            onTap: () {
+              Navigator.pop(context);
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.person),
+            title: const Text('Owners'),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const LoginScreen(),
+                ),
+              );
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.location_city),
+            title: const Text('Areas'),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) =>
+                      AreaScreen(databaseManager: databaseManager),
+                ),
+              );
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.directions_car),
+            title: const Text('Models'),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const LoginScreen(),
+                ),
+              );
+            },
+          ),
+        ],
       ),
-      margin: const EdgeInsets.all(10),
-      padding: const EdgeInsets.only(top: 10, bottom: 10),
-      child: child,
     );
   }
 }

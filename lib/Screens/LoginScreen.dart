@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:modal_progress_hud_nsn/modal_progress_hud_nsn.dart';
 import 'package:myolx/Screens/BrandsScreen.dart';
-import 'package:myolx/components/roundedbutton.dart';
+import 'package:myolx/Components/roundedbutton.dart';
 import 'package:myolx/Utilities/DatabaseManager.dart';
 import 'package:myolx/Screens/SignUpScreen.dart';
-import 'package:myolx/components/myTextField.dart';
+import 'package:myolx/Components/myTextField.dart';
 
 
 // ignore_for_file: prefer_const_constructors
