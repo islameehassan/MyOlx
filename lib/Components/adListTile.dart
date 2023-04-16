@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:myolx/Utilities/carAd.dart';
+import 'package:myolx/Screens/AdScreen.dart';
 
 class adListTile extends StatelessWidget {
   const adListTile({Key? key, required this.carAd}) : super(key: key);
@@ -57,7 +58,14 @@ class adListTile extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.end,
             children: [
               IconButton(
-                onPressed: () {},
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => AdScreen(carAd: carAd),
+                    ),
+                  );
+                },
                 icon: const Icon(Icons.arrow_forward_ios),
               ),
             ],

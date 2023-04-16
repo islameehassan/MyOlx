@@ -12,16 +12,16 @@ import 'package:search_choices/search_choices.dart';
 * Screen to display the top 5 areas with the most ads, and let the user search by any make or model to get the average price of the car across all ads in all areas
 * */
 
-class AreaScreen extends StatefulWidget {
-  AreaScreen({Key? key, required this.databaseManager}) : super(key: key);
+class AreasScreen extends StatefulWidget {
+  const AreasScreen({Key? key, required this.databaseManager}) : super(key: key);
   static const id = 'Areas';
   final DatabaseManager databaseManager;
 
   @override
-  State<AreaScreen> createState() => _AreaScreenState();
+  State<AreasScreen> createState() => _AreasScreenState();
 }
 
-class _AreaScreenState extends State<AreaScreen> {
+class _AreasScreenState extends State<AreasScreen> {
   late final DatabaseManager databaseManager;
   late final List<String> brands;
   late final List<String> models;
@@ -31,7 +31,7 @@ class _AreaScreenState extends State<AreaScreen> {
     // get the top 5 areas with the most ads
     // get the list of all makes and models
     databaseManager = widget.databaseManager;
-    Map<String, List<String>> result = databaseManager.brandModels;
+    Map<String, List<String>> result = databaseManager.brandANDmodels;
     // get all keys (brands)
     brands = result.keys.toList();
     // get all values (models)
@@ -52,9 +52,9 @@ class _AreaScreenState extends State<AreaScreen> {
   String selectedBrand = "";
   String selectedModel = "";
   String selectedArea = "";
-  bool areasLoaded = false;
+  bool loading = false;
   List<String> topAreas = [];
-  String averagePrice = "";
+  String? averagePrice = "";
   String message = "";
   @override
   Widget build(BuildContext context) {
@@ -220,35 +220,51 @@ class _AreaScreenState extends State<AreaScreen> {
                         });
                         return;
                       }
+                      // no query if the user press search without selecting a different make or model than the previous one
+                      setState(() {
+                        message = '';
+                      });
+                      loading = true;
                       if (selectedBrand != 'null') {
                         averagePrice = await databaseManager.getAvgBrandPrice(selectedBrand, selectedArea);
                       }
                       else if (selectedModel != 'null') {
-                        averagePrice = await databaseManager.getAvgModelPrice(selectedModel, selectedArea);
+                        averagePrice = (await databaseManager.getAvgModelPrice(selectedModel, selectedArea));
                       }
+                      loading = false;
+                      message = '';
                       setState(() {
                       });
                     },
                     child: const Text('Search'),
                   ),
-                  // Result
-                  const SizedBox(
-                    height: 10.0,
-                  ),
                   // message if the user has not selected a make or model or location
                     Text(
                       message,
+                      textAlign: TextAlign.center,
                       style: TextStyle(
-                        fontSize: 14.0,
+                        fontSize: 15.0,
+                        fontStyle: FontStyle.italic,
+                        color: Colors.grey,
+                      ),
+                    ),
+                  if(loading)
+                    Center(
+                      child: const CircularProgressIndicator(
                         color: Colors.redAccent,
                       ),
                     ),
-                  Text(
-                    'Average Price: $averagePrice EGP',
-                    style: TextStyle(
-                      fontSize: 20.0,
-                      fontWeight: FontWeight.bold,
+                  if(!loading)
+                    Text(
+                      // check if average price is null
+                      averagePrice == null ? 'No results found' : 'Average Price: $averagePrice EGP',
+                      style: TextStyle(
+                        fontSize: 20.0,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
+                  SizedBox(
+                    height: 30.0,
                   ),
                 ],
               ),
@@ -315,7 +331,8 @@ class cityInfo extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   Text(
-                    '$averagePrice EGP',
+                    // handle the case if avg price is null
+                    averagePrice,
                     style: TextStyle(
                       color: Colors.white,
                       fontWeight: FontWeight.bold,

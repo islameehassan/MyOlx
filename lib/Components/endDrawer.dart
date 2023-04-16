@@ -32,7 +32,7 @@ class _myEndDrawerState extends State<myEndDrawer>{
     '4X4',
     'Hatchback',
     'Coupe',
-    'Van/Bus',
+    'Van',
     'Cabriolet',
     'Other',
   ];
@@ -97,23 +97,23 @@ class _myEndDrawerState extends State<myEndDrawer>{
   }
 
   List<DropdownMenuItem<String>> getExtraFeatures(){
-    List<DropdownMenuItem<String>> extraFeatures = [];
+    List<DropdownMenuItem<String>> extraFeaturesItems = [];
     for (var i = 0; i < databaseManager.extraFeatures.length; i++) {
-      extraFeatures.add(
+      extraFeaturesItems.add(
         DropdownMenuItem(
           value: databaseManager.extraFeatures[i],
           child: Text(databaseManager.extraFeatures[i]),
         ),
       );
     }
-    return extraFeatures;
+    return extraFeaturesItems;
   }
 
   String selectedBodyType = '';
   String selectedBrand = '';
   String selectedLocation = '';
   String selectedYear = '';
-  List<String> selectedExtraFeatures = [];
+  List<int> selectedExtraFeatures = [];
   late String username;
   String minPrice = '';
   String maxPrice = '';
@@ -126,7 +126,7 @@ class _myEndDrawerState extends State<myEndDrawer>{
     super.initState();
     databaseManager = widget.databaseManager;
     databaseManager.getBrands();
-    brands = widget.databaseManager.brandModels.keys.toList();
+    brands = widget.databaseManager.brandANDmodels.keys.toList();
     locations = widget.databaseManager.locations;
     username = databaseManager.username;
   }
@@ -183,8 +183,15 @@ class _myEndDrawerState extends State<myEndDrawer>{
                       height: 10,
                     ),
                     ElevatedButton(
-                      onPressed: () {
-                        widget.passDataToParent(selectedBrand, selectedLocation, selectedYear.toString(), selectedBodyType, minPrice.toString(), maxPrice.toString(), minMileage.toString(), maxMileage.toString(), selectedPaymentMethod.toString(), selectedExtraFeatures);
+                      onPressed: () async{
+                        List<String> finalExtraFeatures = [];
+                        Set<int> selectedFeaturesSet = Set.from(selectedExtraFeatures);
+                        if(selectedFeaturesSet.isNotEmpty){
+                          for (var i = 0; i < selectedFeaturesSet.length; i++) {
+                            finalExtraFeatures.add(databaseManager.extraFeatures[selectedFeaturesSet.elementAt(i)]);
+                          }
+                        }
+                        widget.passDataToParent(selectedBrand, selectedLocation, selectedYear.toString(), selectedBodyType, minPrice.toString(), maxPrice.toString(), minMileage.toString(), maxMileage.toString(), selectedPaymentMethod.toString(), finalExtraFeatures);
                         Navigator.pop(context);
                       },
                       style: ElevatedButton.styleFrom(
@@ -378,14 +385,15 @@ class _myEndDrawerState extends State<myEndDrawer>{
                     ),
                     RadioListTile(
                       activeColor: Colors.redAccent,
-                      value: 'Installment',
+                      value: 'Installments',
                       groupValue: selectedPaymentMethod,
                       onChanged: (value) {
                         setState(() {
                           selectedPaymentMethod = value.toString();
                         });
                       },
-                      title: const Text('Installment'),
+                      title: const Text('Installments'
+                          ''),
                     ),
                     RadioListTile(
                       activeColor: Colors.redAccent,
@@ -409,13 +417,17 @@ class _myEndDrawerState extends State<myEndDrawer>{
               drawerElement(
                 icon: Icons.add,
                 title: 'Extra Features',
-                child: SearchChoices.multiple(
+                child: SearchChoices<String>.multiple(
                   items: getExtraFeatures(),
+                  selectedItems: selectedExtraFeatures,
                   hint: 'Select Extra Features',
                   searchHint: 'Select Extra Features',
                   onChanged: (value) {
+                    print(selectedExtraFeatures);
                     setState(() {
-                      selectedExtraFeatures = value as List<String>;
+                      for(int i = 0; i < value.length; i++) {
+                        selectedExtraFeatures.add(value[i]);
+                      }
                     });
                   },
                   isExpanded: true,

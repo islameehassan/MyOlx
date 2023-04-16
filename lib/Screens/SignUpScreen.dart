@@ -2,9 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:myolx/Screens/BrandsScreen.dart';
 import 'package:myolx/Utilities/DatabaseManager.dart';
 import 'package:myolx/Components/myTextField.dart';
-import 'package:myolx/constants.dart';
-import 'package:myolx/Components/roundedbutton.dart';
-import 'package:modal_progress_hud_nsn/modal_progress_hud_nsn.dart';
+import 'package:myolx/Components/roundedButton.dart';
+import '../Components/loading.dart';
 
 // ignore_for_file: prefer_const_constructors
 // ignore_for_file: prefer_const_literals_to_create_immutables
@@ -20,10 +19,13 @@ class SignUpScreen extends StatefulWidget {
 
 class _SignUpScreenState extends State<SignUpScreen> {
   final DatabaseManager databaseManager = DatabaseManager();
+  final emailAddressController = TextEditingController();
+  final usernameController = TextEditingController();
+  final passwordController = TextEditingController();
   String emailAddress = "";
   String username = "";
   String password = "";
-  String gender = "Female";
+  String gender = "Male";
   DateTime birthdate = DateTime.now();
   String message = "";
   bool loadingSpinner = false;
@@ -61,7 +63,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
     });
     tempMessage = await databaseManager.checkIfUserExists(emailAddress);
     if(tempMessage == "Found") {
-      tempMessage = "User already exists";
+      tempMessage = "User already exists, please login";
     }
     else if(emailAddress.isEmpty){
       tempMessage = "Please enter an email address";
@@ -76,22 +78,27 @@ class _SignUpScreenState extends State<SignUpScreen> {
     }
     else if(password.length < 8){
       tempMessage = "Password must be at least 8 characters";
+      passwordController.clear();
     }
     else{
       try {
         await databaseManager.registerNewUser(
             emailAddress, username, password, gender, birthdate);
         tempMessage = "User successfully registered";
-        Map<String, List<String>> brandModel = await databaseManager.getBrands();
         // ignore: use_build_context_synchronously
+        await databaseManager.getBrands();
         Navigator.push(
             context,
             MaterialPageRoute(
                 builder: (context) => BrandsScreen(
                   databaseManager: databaseManager,
-                  brandModels: brandModel,
                 ))
         );
+        // return to default
+        emailAddressController.clear();
+        usernameController.clear();
+        passwordController.clear();
+        gender = 'Male';
       }
       catch(e){
         tempMessage = "Error: $e";
@@ -106,10 +113,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
   @override
   void dispose(){
     super.dispose();
-    emailAddress = "";
-    username = "";
-    password = "";
-    message = "";
+    emailAddressController.clear();
+    usernameController.clear();
+    passwordController.clear();
   }
 
   @override
@@ -117,176 +123,182 @@ class _SignUpScreenState extends State<SignUpScreen> {
   // EmailAddress, Username, Birthdate, Gender, Password
 
   Widget build(BuildContext context) {
-    return ModalProgressHUD(
-      inAsyncCall: loadingSpinner,
-      child: Scaffold(
-        resizeToAvoidBottomInset: false,
-        body: Padding(
-          padding: const EdgeInsets.all(18.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment:  CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: const [
-                  Hero(
-                    tag: 'logo',
-                    child: Image(
-                      image: AssetImage('assets/images/logo.jpeg'),
-                      height: 80.0,
+    return Scaffold(
+      resizeToAvoidBottomInset: false,
+      body: Padding(
+        padding: const EdgeInsets.all(18.0),
+        child: Stack(
+          children: [
+            Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment:  CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: const [
+                    Hero(
+                      tag: 'logo',
+                      child: Image(
+                        image: AssetImage('assets/images/logo.jpeg'),
+                        height: 80.0,
+                      ),
                     ),
-                  ),
-                  Text(
-                    "Sign Up",
-                    style: TextStyle(
-                      fontSize: 45.0,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(
-                height: 40.0,
-              ),
-              myTextField(
-                obscureText: false,
-                onChanged: (value) {
-                  emailAddress = value;
-                },
-                hintText: "Enter your email",
-                icon: Icons.email,
-              ),
-              const SizedBox(
-                height: 8.0,
-              ),
-              myTextField(
-                obscureText: false,
-                onChanged: (value) {
-                  username = value;
-                },
-                hintText: "Enter your username",
-                icon: Icons.person,
-              ),
-              const SizedBox(
-                height: 8.0,
-              ),
-              myTextField(
-                obscureText: true,
-                onChanged: (value) {
-                  password = value;
-                },
-                hintText: "Enter your password",
-                icon: Icons.lock,
-              ),
-              const SizedBox(
-                height: 16.0,
-              ),
-              Padding(
-                padding: const EdgeInsets.only(left: 8.0),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
                     Text(
-                      "Gender: ",
+                      "Sign Up",
                       style: TextStyle(
-                        fontSize: 18.0,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    Expanded(
-                      child: RadioListTile<String>(
-                        activeColor: Colors.black,
-                        title: Text('Male'),
-                        value: 'Male',
-                        groupValue: gender,
-                        onChanged: (value){
-                          gender = value!;
-                          setState(() {});
-                        },
-                      ),
-                    ),
-                    Expanded(
-                      child: RadioListTile<String>(
-                        visualDensity: VisualDensity.compact,
-                        contentPadding: EdgeInsets.zero,
-                        activeColor: Colors.black,
-                        title: Text('Female'),
-                        value: 'Female',
-                        groupValue: gender,
-                        onChanged: (value){
-                          gender = value!;
-                          setState(() {});
-                        },
+                        fontSize: 45.0,
+                        fontWeight: FontWeight.w900,
                       ),
                     ),
                   ],
                 ),
-              ),
-              const SizedBox(
-                height: 16.0,
-              ),
-              // Date of birth
-              Padding(
-                padding: const EdgeInsets.only(left: 8.0),
-                child: Row(
-                  children: [
-                    Text(
-                      "Birthdate: ",
-                      style: TextStyle(
-                        fontSize: 18.0,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    Expanded(
-                      child: ListTile(
-                        title: IconButton(
-                          onPressed: birthDatePicker,
-                          icon: Icon(
-                            Icons.calendar_today,
-                            size: 30.0,
-                          ),
-                          color: Colors.black,
+                const SizedBox(
+                  height: 40.0,
+                ),
+                myTextField(
+                  controller: emailAddressController,
+                  obscureText: false,
+                  onChanged: (value) {
+                    emailAddress = value;
+                  },
+                  hintText: "Enter your email",
+                  icon: Icons.email,
+                ),
+                const SizedBox(
+                  height: 8.0,
+                ),
+                myTextField(
+                  controller: usernameController,
+                  obscureText: false,
+                  onChanged: (value) {
+                    username = value;
+                  },
+                  hintText: "Enter your username",
+                  icon: Icons.person,
+                ),
+                const SizedBox(
+                  height: 8.0,
+                ),
+                myTextField(
+                  controller: passwordController,
+                  obscureText: true,
+                  onChanged: (value) {
+                    password = value;
+                  },
+                  hintText: "Enter your password",
+                  icon: Icons.lock,
+                ),
+                const SizedBox(
+                  height: 16.0,
+                ),
+                Padding(
+                  padding: const EdgeInsets.only(left: 8.0),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        "Gender: ",
+                        style: TextStyle(
+                          fontSize: 18.0,
+                          fontWeight: FontWeight.w600,
                         ),
-                        trailing: Text(
-                            "${birthdate.day}/${birthdate.month}/${birthdate.year}",
-                            style: TextStyle(
-                              fontSize: 18.0,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.black,
+                      ),
+                      Expanded(
+                        child: RadioListTile<String>(
+                          activeColor: Colors.black,
+                          title: Text('Male'),
+                          value: 'Male',
+                          groupValue: gender,
+                          onChanged: (value){
+                            gender = value!;
+                            setState(() {});
+                          },
+                        ),
+                      ),
+                      Expanded(
+                        child: RadioListTile<String>(
+                          visualDensity: VisualDensity.compact,
+                          contentPadding: EdgeInsets.zero,
+                          activeColor: Colors.black,
+                          title: Text('Female'),
+                          value: 'Female',
+                          groupValue: gender,
+                          onChanged: (value){
+                            gender = value!;
+                            setState(() {});
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(
+                  height: 16.0,
+                ),
+                // Date of birth
+                Padding(
+                  padding: const EdgeInsets.only(left: 8.0),
+                  child: Row(
+                    children: [
+                      Text(
+                        "Birthdate: ",
+                        style: TextStyle(
+                          fontSize: 18.0,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      Expanded(
+                        child: ListTile(
+                          title: IconButton(
+                            onPressed: birthDatePicker,
+                            icon: Icon(
+                              Icons.calendar_today,
+                              size: 30.0,
+                            ),
+                            color: Colors.black,
+                          ),
+                          trailing: Text(
+                              "${birthdate.day}/${birthdate.month}/${birthdate.year}",
+                              style: TextStyle(
+                                fontSize: 18.0,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.black,
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-              const SizedBox(
-                height: 10.0,
-              ),
-              Text(
-                "$message",
-                style: TextStyle(
-                  color: Colors.black54,
-                  fontSize: 20,
-                  fontWeight: FontWeight.w400,
-                  fontFamily: 'Pacifico',
-                  fontStyle: FontStyle.italic,
+                const SizedBox(
+                  height: 10.0,
                 ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(
-                height: 10.0,
-              ),
-              RoundedButton(
-                text: 'SignUp',
-                press: () async {
-                  await validateUser();
-                },
-              )
-            ],
-          ),
-        )
+                Text(
+                  message,
+                  style: TextStyle(
+                    color: Colors.black54,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w400,
+                    fontFamily: 'Pacifico',
+                    fontStyle: FontStyle.italic,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(
+                  height: 10.0,
+                ),
+                RoundedButton(
+                  text: 'SignUp',
+                  press: () async {
+                    await validateUser();
+                  },
+                )
+              ],
+            ),
+            // add blur effect to the background
+            loadingSpinner ? const loading() : Container(),
+          ],
+        ),
       )
     );
   }

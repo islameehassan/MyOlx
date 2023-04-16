@@ -26,7 +26,7 @@ class RoundedButton extends StatelessWidget {
             end: Alignment.topLeft,
             colors: [
               Color(0xFFF4717F),
-              Colors.pinkAccent
+              Colors.redAccent
             ],
           ),
         ),

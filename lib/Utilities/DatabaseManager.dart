@@ -14,7 +14,7 @@ class DatabaseManager{
   bool _isConnected = false;
   String _emailAddress = "";
   String _username = "";
-  Map<String, List<String>> _brandModels = {};
+  Map<String, List<String>> _brandsANDmodels = {};
   List<String> _locations = [];
   List<String> _extraFeatures = [];
 
@@ -23,6 +23,7 @@ class DatabaseManager{
   * private method
   * called by the class after the user has logged in or signed up only.
   */
+
   Future<void> _connect() async{
     print("Connecting to the database");
     var settings = ConnectionSettings(
@@ -42,13 +43,15 @@ class DatabaseManager{
       print(e);
     }
   }
+
   /*
   * getters
   */
   bool get isConnected => _isConnected;
+  get conn => _conn;
   String get emailAddress => _emailAddress;
   String get username => _username;
-  Map<String, List<String>> get brandModels => _brandModels;
+  Map<String, List<String>> get brandANDmodels => _brandsANDmodels;
   List<String> get locations => _locations;
   List<String> get extraFeatures => _extraFeatures;
 
@@ -71,6 +74,7 @@ class DatabaseManager{
   /*
   * authenticate the user, return a message
   */
+
   Future<String> authenticateUser(String emailAddress, String pass) async{
     String message = await checkIfUserExists(emailAddress);
     if(message != "Found"){
@@ -100,7 +104,7 @@ class DatabaseManager{
       gender = gender == 'Male' ? 'M' : 'F';
       String newDate = DateFormat("yyyy-MM-dd").format(dateOfBirth);
 
-      await _conn.query('insert into User(Email_Address, Username, PASSWORD, Gender, BirthDate) values (?, ?, ?, ?, ?)', [emailAddress, username, password, gender, newDate]);
+      await _conn.query('insert into User values (?, ?, ?, ?, ?)', [emailAddress, username, gender, newDate, password]);
       _emailAddress = emailAddress;
       _username = username;
     }
@@ -110,52 +114,9 @@ class DatabaseManager{
   }
 
   /*
-  * get the brands and models
-  */
-  Future<Map<String, List<String>>> getBrands() async{
-    if(!_isConnected){
-      await _connect();
-    }
-    Results brands = await _conn.query('select distinct(Brand), Model from CarAd');
-    Map<String, List<String>> brandModels = {};
-    for(var brand in brands){
-      String brandName = brand.fields["Brand"];
-      String modelName = brand.fields["Model"];
-      if(modelName != 'Other') {
-        if (brandModels.containsKey(brandName)) {
-          brandModels[brandName]!.add(modelName);
-        }
-        else {
-          brandModels[brandName] = [modelName];
-        }
-      }
-    }
-    _brandModels = brandModels;
-    return brandModels;
-  }
-
-  Future<List<String>> getLocations() async{
-    Results locations = await _conn.query('select distinct(Location) from CarAd order by 1');
-    List<String> locationsList = [];
-    for(var location in locations){
-      locationsList.add(location.fields["Location"]);
-    }
-    _locations = locationsList;
-    return locationsList;
-  }
-
-  Future<List<String>> getExtraFeatures() async{
-    Results features = await _conn.query('select distinct(Feature) from CarExtraFeatures order by 1');
-    List<String> featuresList = [];
-    for(var feature in features){
-      featuresList.add(feature.fields["Feature"]);
-    }
-    _extraFeatures = featuresList;
-    return featuresList;
-  }
-
-  /*
   * upload the user preferences
+  * IMPORTANT NOTE: currently preferences are not used in the app, they are only retrieved for storage in the database.
+  * In later versions of the app, the user should encounter ads that suit their preferences, if no filters are provided by the user.
   */
   Future<void> uploadUserPreferences(List<String> selectedModels) async{
     try{
@@ -171,6 +132,53 @@ class DatabaseManager{
     catch(e){
       print(e);
     }
+  }
+
+  /*
+  * get the brands and models and store it in a map for usage later
+  */
+
+  Future<void> getBrands() async{
+    if(!isConnected){
+      await _connect();
+    }
+    Results brands = await _conn.query('select distinct(Brand), Model from CarAd');
+    Map<String, List<String>> brandModels = {};
+    for(var brand in brands) {
+      String brandName = brand.fields["Brand"];
+      String modelName = brand.fields["Model"];
+      if (brandModels.containsKey(brandName)) {
+        brandModels[brandName]!.add(modelName);
+      }
+      else {
+        brandModels[brandName] = [modelName];
+      }
+    }
+    _brandsANDmodels = brandModels;
+  }
+  /*
+  * get all locations sorted alphabetically
+  */
+  Future<List<String>> getLocations() async{
+    Results locations = await _conn.query('select distinct(Location) from CarAd order by 1');
+    List<String> locationsList = [];
+    for(var location in locations){
+      locationsList.add(location.fields["Location"]);
+    }
+    _locations = locationsList;
+    return locationsList;
+  }
+  /*
+  * get all extra features sorted alphabetically
+  */
+  Future<List<String>> getExtraFeatures() async{
+    Results features = await _conn.query('select distinct(Feature) from CarExtraFeatures order by 1');
+    List<String> featuresList = [];
+    for(var feature in features){
+      featuresList.add(feature.fields["Feature"]);
+    }
+    _extraFeatures = featuresList;
+    return featuresList;
   }
 
   /*
@@ -209,12 +217,10 @@ class DatabaseManager{
     if(allEmpty && userExtraFeatures.isEmpty){
       return [];
     }
-
-    print(parsedFilters);
-
-    Results ads = await _conn.query('select * from CarAd where ${parsedFilters[0]} ${parsedFilters[1]} ${parsedFilters[2]} ${parsedFilters[3]} ${parsedFilters[4]} ${parsedFilters[5]} ${parsedFilters[6]} order by Ad_Id limit ${page},10');
-    print(ads.length);
-    print(page);
+    else if(!allEmpty) {
+      parsedFilters[0] = "where ${parsedFilters[0]}";
+    }
+    Results ads = await _conn.query('select * from CarAd ${parsedFilters[0]}${parsedFilters[1]}${parsedFilters[2]}${parsedFilters[3]} ${parsedFilters[4]} ${parsedFilters[5]}${parsedFilters[6]} ${parsedFilters[7]} order by Ad_Id limit $page,10');
     List<CarAd> adsList = [];
     for(var ad in ads){
       String adId = ad.fields["Ad_Id"].toString();
@@ -235,15 +241,31 @@ class DatabaseManager{
       String adDescription = ad.fields["Ad_Description"];
       String brand = ad.fields["Brand"];
       String model = ad.fields["Model"];
-      int year = ad.fields["CarYear"];
-      String? bodyType = ad.fields["BodyType"];
+      String year = ad.fields["CarYear"].toString();
+      String? bodyType = ad.fields["Body_Type"];
       String location = ad.fields["Location"];
-      int price = ad.fields["Price"];
-      int? minMileage = ad.fields["Odometer_Lower_Range"];
-      int? maxMileage = ad.fields["Odometer_Upper_Range"];
+      String price = ad.fields["Price"].toString();
+      String? minMileage = ad.fields["Odometer_Lower_Range"].toString();
+      String? maxMileage = ad.fields["Odometer_Upper_Range"].toString();
       String? paymentMethod = ad.fields["Payment_Method"];
+      String? fuelType = ad.fields["Fuel_Type"];
+      String? transmission = ad.fields["Transmission"];
+      String? engineCapacityLowerRange = ad.fields["Engine_Capacity_Lower_Range"].toString();
+      String? engineCapacityUpperRange = ad.fields["Engine_Capacity_Upper_Range"].toString();
+      String? color = ad.fields["Color"];
+      String? OwnerPhoneNumber = ad.fields["Owner_PhoneNo"];
+      String? UserEmailAddress = ad.fields["User_Email_Address"];
+      String? review = ad.fields["Review"];
+      String? rating = ad.fields["Rating"].toString();
+      String? sellingPrice = ad.fields["Selling_Price"].toString();
 
-      CarAd carAd = CarAd(Ad_Id: adId, Ad_Description: adDescription, Brand: brand, Model: model, CarYear: year, BodyType: bodyType, Location: location, Price: price, Odometer_Lower_Range: minMileage, Odometer_Upper_Range: maxMileage, Payment_Method: paymentMethod, Features: featuresList);
+      // get the owner user name and join date
+      Results owner = await _conn.query('select UserName, Join_Date from Owner where PhoneNumber=$OwnerPhoneNumber');
+      String? ownerUserName = owner.first.fields["UserName"];
+      String? ownerJoinDate = owner.first.fields["Join_Date"].toString().split(' ')[0];
+
+      // if the field is null and optional, leave the field as its default value
+      CarAd carAd = CarAd(Ad_Id: adId, Ad_Description: adDescription, Brand: brand, Model: model, CarYear: year, BodyType: bodyType, Location: location, Price: price, Odometer_Lower_Range: minMileage, Odometer_Upper_Range: maxMileage, Payment_Method: paymentMethod, FuelType: fuelType, Transmission: transmission, Engine_Capacity_Lower_Range: engineCapacityLowerRange, Engine_Capacity_Upper_Range: engineCapacityUpperRange, Color: color, Owner_PhoneNumber: OwnerPhoneNumber, User_EmailAddress: UserEmailAddress, Review: review, Rating: rating, Features: featuresList, Owner_Username: ownerUserName, Owner_JoinDate: ownerJoinDate, Selling_Price: sellingPrice);
       adsList.add(carAd);
     }
     return adsList;
@@ -251,7 +273,7 @@ class DatabaseManager{
 
   Future<List<List<String>>> getTopSellers() async{
     Results sellers = await _conn.query(
-        '''SELECT Owner_PhoneNo, O.UserName, count(*) as numberOfAds, (Sum(Price) * 365)/ DATEDIFF(CURRENT_DATE, O.Join_Date) as AvgPricePerYear
+        '''SELECT Owner_PhoneNo, O.UserName, count(*) as numberOfAds, Sum(Price)/count(*) as AvgPricePerCar, Avg(Rating) as AvgRating
         from CarAd CA INNER JOIN Owner O
         on CA.Owner_PhoneNo = O.PhoneNumber
         group by 1,2
@@ -264,18 +286,66 @@ class DatabaseManager{
       String sellerPhoneNo = seller.fields["Owner_PhoneNo"];
       String sellerUsername = seller.fields["UserName"];
       int numberOfAds = seller.fields["numberOfAds"];
-      int avgPricePerYear = seller.fields["AvgPricePerYear"].toInt(); // from double to int
+      int avgPricePerCar = seller.fields["AvgPricePerCar"].toInt(); // from double to int
+      double? avgRating = seller.fields["AvgRating"];
 
       sellerInfo.add(sellerUsername);
       sellerInfo.add(sellerPhoneNo);
       sellerInfo.add(numberOfAds.toString());
       // add a comma each 3 digits
-      sellerInfo.add(avgPricePerYear.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},'));
-      sellerInfo.add(avgPricePerYear.toString());
+      sellerInfo.add(avgPricePerCar.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},'));
+      sellerInfo.add(avgRating.toString());
 
       sellersList.add(sellerInfo);
     }
     return sellersList;
+  }
+
+  Future<List<List<String>>> getSellerInfo(String? phoneNo, String? username) async{
+    String phoneNoSelected = "PhoneNumber = '$phoneNo'";
+    String usernameSelected = "UserName = '$username'";
+    if(phoneNo == null || phoneNo == ''){
+      phoneNoSelected = '';
+    }
+    else if(username == null || username == ''){
+      usernameSelected = '';
+    }
+    else{
+      phoneNoSelected = "PhoneNumber = '$phoneNo' and ";
+    }
+    Results sellers = await _conn.query(
+        '''SELECT Owner_PhoneNo, O.UserName, count(*) as numberOfAds, Sum(Price)/count(*) as AvgPricePerYear, Avg(Rating) as AvgRating
+        from CarAd CA INNER JOIN Owner O
+        on CA.Owner_PhoneNo = O.PhoneNumber
+        where $phoneNoSelected $usernameSelected
+        group by 1,2
+        order by count(*) DESC;'''
+    );
+    List<List<String>> sellerInfo = [];
+    if(sellers.isEmpty){
+      return sellerInfo;
+    }
+    for(var seller in sellers) {
+      List<String> currentSeller = [];
+      String sellerPhoneNo = seller.fields["Owner_PhoneNo"];
+      String sellerUsername = seller.fields["UserName"];
+      int? numberOfAds = seller.fields["numberOfAds"];
+      int? avgPricePerYear = seller.fields["AvgPricePerYear"]
+          .toInt(); // from double to int
+      double? avgRating = seller.fields["AvgRating"];
+
+      currentSeller.add(sellerUsername);
+      currentSeller.add(sellerPhoneNo);
+      currentSeller.add(numberOfAds.toString());
+      // add a comma each 3 digits
+      currentSeller.add(avgPricePerYear.toString().replaceAllMapped(
+          RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},'));
+      currentSeller.add(avgRating.toString());
+
+      sellerInfo.add(currentSeller);
+    }
+
+    return sellerInfo;
   }
 
   Future<Map<String, Pair<String, String>>> getTopFiveAreas() async{
@@ -297,19 +367,150 @@ class DatabaseManager{
     return areasList;
   }
 
-  Future<String> getAvgBrandPrice(String brand, String location) async{
+  Future<String?> getAvgBrandPrice(String brand, String location) async{
 
     Results avgPrice = await _conn.query('select avg(Price) as AveragePrice from CarAd where Brand="$brand" and Location="$location"');
-    String avgPriceString = avgPrice.first.fields["AveragePrice"].toInt().toString();
-    avgPriceString = avgPriceString.replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},');
+    String? avgPriceString = avgPrice.first.fields["AveragePrice"]?.toInt().toString();
+    avgPriceString = avgPriceString?.replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},');
     return avgPriceString;
   }
 
-  Future<String> getAvgModelPrice(String model, String location) async{
-    Results avgPrice = await _conn.query('select avg(Price) as AveragePrice from CarAd where Model="$model and Location="$location"');
-    String avgPriceString = avgPrice.first.fields["AveragePrice"].toInt().toString();
-    avgPriceString = avgPriceString.replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},');
+  Future<String?> getAvgModelPrice(String model, String location) async{
+    Results avgPrice = await _conn.query('select avg(Price) as AveragePrice from CarAd where Model="$model" and Location="$location"');
+    String? avgPriceString = avgPrice.first.fields["AveragePrice"]?.toInt().toString();
+    avgPriceString = avgPriceString?.replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},');
     return avgPriceString;
+  }
+
+  // username is an optional parameter
+  Future<List<CarAd>> getOwnerAds(String username, String phoneNum, int page) async{
+    Results ads;
+    if(phoneNum == '' || phoneNum == 'null'){
+      ads = await _conn.query('select * from Owner O inner join CarAd CA on O.PhoneNumber = CA.Owner_PhoneNo where O.UserName="$username" order by Ad_Id limit $page,10');
+    }
+    else if(username == '' || username == 'null'){
+      ads = await _conn.query('select * from CarAd where Owner_PhoneNo="$phoneNum" order by Ad_Id limit $page,10');
+    }
+    else{
+      ads = await _conn.query('select * from Owner O inner join CarAd CA on O.PhoneNumber = CA.Owner_PhoneNo where O.UserName="$username" and O.PhoneNumber = $phoneNum order by Ad_Id limit $page,10');
+    }
+
+    List<CarAd> adsList = [];
+    for(var ad in ads){
+      String adId = ad.fields["Ad_Id"].toString();
+      String adDescription = ad.fields["Ad_Description"];
+      String brand = ad.fields["Brand"];
+      String model = ad.fields["Model"];
+      String year = ad.fields["CarYear"].toString();
+      String? bodyType = ad.fields["Body_Type"];
+      String location = ad.fields["Location"];
+      String price = ad.fields["Price"].toString();
+      String? minMileage = ad.fields["Odometer_Lower_Range"].toString();
+      String? maxMileage = ad.fields["Odometer_Upper_Range"].toString();
+      String? paymentMethod = ad.fields["Payment_Method"];
+      String? fuelType = ad.fields["Fuel_Type"];
+      String? transmission = ad.fields["Transmission"];
+      String? engineCapacityLowerRange = ad.fields["Engine_Capacity_Lower_Range"].toString();
+      String? engineCapacityUpperRange = ad.fields["Engine_Capacity_Upper_Range"].toString();
+      String? color = ad.fields["Color"];
+      String? OwnerPhoneNumber = ad.fields["Owner_PhoneNo"];
+      String? UserEmailAddress = ad.fields["User_Email_Address"];
+      String? review = ad.fields["Review"];
+      String? rating = ad.fields["Rating"].toString();
+      String? sellingPrice = ad.fields["Selling_Price"].toString();
+
+      // get the owner user name and join date
+      Results owner = await _conn.query('select UserName, Join_Date from Owner where PhoneNumber=$OwnerPhoneNumber');
+      String ownerUserName = owner.first.fields["UserName"];
+      String? ownerJoinDate = owner.first.fields["Join_Date"].toString().split(' ')[0];
+
+      // get the features of the car
+      Results features = await _conn.query('select Feature from CarExtraFeatures where Ad_Id=$adId');
+      List<String> featuresList = [];
+      for(var feature in features){
+        featuresList.add(feature.fields["Feature"]);
+      }
+
+      // if the field is null and optional, leave the field as its default value
+      CarAd carAd = CarAd(Ad_Id: adId, Ad_Description: adDescription, Brand: brand, Model: model, CarYear: year, BodyType: bodyType, Location: location, Price: price, Odometer_Lower_Range: minMileage, Odometer_Upper_Range: maxMileage, Payment_Method: paymentMethod, FuelType: fuelType, Transmission: transmission, Engine_Capacity_Lower_Range: engineCapacityLowerRange, Engine_Capacity_Upper_Range: engineCapacityUpperRange, Color: color, Owner_PhoneNumber: OwnerPhoneNumber, User_EmailAddress: UserEmailAddress, Review: review, Rating: rating, Features: featuresList, Owner_Username: ownerUserName, Owner_JoinDate: ownerJoinDate, Selling_Price: sellingPrice);
+      adsList.add(carAd);
+    }
+    return adsList;
+
+  }
+
+  Future<Map<String, Pair<String, String>>> getTopFiveMakes() async{
+    Results topFiveMakes = await _conn.query(
+        '''SELECT Brand, count(*) as numberOfAds, avg(Price) as AvgPrice
+        from CarAd
+        group by 1
+        ORDER by 2 DESC
+        LIMIT 5;'''
+    );
+    Map<String, Pair<String, String>> topFiveMakesList = {};
+    for(var make in topFiveMakes){
+      String makeName = make.fields["Brand"];
+      String numberOfAds = make.fields["numberOfAds"].toString();
+      String avgPriceString = make.fields["AvgPrice"].toInt().toString();
+      avgPriceString = avgPriceString.replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},');
+      topFiveMakesList[makeName] = Pair(numberOfAds, avgPriceString);
+    }
+    return topFiveMakesList;
+  }
+
+  Future<Map<String, Pair<String, String>>> getTopFiveModels() async{
+    Results topFiveModels = await _conn.query(
+        '''SELECT Model, count(*) as numberOfAds, avg(Price) as AvgPrice
+        from CarAd
+        group by 1
+        ORDER by 2 DESC
+        LIMIT 5;'''
+    );
+    Map<String, Pair<String, String>> topFiveModelsList = {};
+    for(var model in topFiveModels){
+      String modelName = model.fields["Model"];
+      String numberOfAds = model.fields["numberOfAds"].toString();
+      String avgPriceString = model.fields["AvgPrice"].toInt().toString();
+      avgPriceString = avgPriceString.replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},');
+      topFiveModelsList[modelName] = Pair(numberOfAds, avgPriceString);
+    }
+    return topFiveModelsList;
+  }
+
+
+  Future<String?> getModelorMakeAverageforRangeYear(String? brand, String? model, String startYear, String endYear) async{
+    String modelSelect = "model = '$model'";
+    if(model == "null" || model == ""){
+      modelSelect = "";
+    }
+    String brandSelect = "brand = '$brand'";
+    if(brand == "null" || brand == ""){
+      brandSelect = "";
+    }
+    Results avgPrice = await _conn.query(
+        '''SELECT avg(Price) as AvgPrice
+        from CarAd
+        where $brandSelect $modelSelect and CarYear between $startYear and $endYear;'''
+    );
+    String? avgPriceString = avgPrice.first.fields["AvgPrice"]?.toInt().toString();
+    avgPriceString = avgPriceString?.replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},');
+    return avgPriceString;
+  }
+
+  // add a new car sale
+  Future<void> addSale(String carAdId, String userEmailaddress, String Review, String SellingPrice, String Rating) async{
+    if(!_isConnected){
+      // connect
+
+      await _connect();
+    }
+    // update not insert
+    await _conn.query(
+        '''UPDATE CarAd
+        SET Review = '$Review', Rating = $Rating, User_Email_Address = '$userEmailaddress', Selling_Price = $SellingPrice
+        WHERE Ad_Id = $carAdId;'''
+    );
+    print("Sale added");
   }
   /*
   * close the connection
@@ -337,14 +538,15 @@ class DatabaseManager{
     String yearSelect = (year == '' || year == 'null') ? '' : 'CarYear="$year"';
     String bodyTypeSelect = (bodyType == '' || bodyType == 'null') ? '' : 'Body_Type="$bodyType"';
     String priceSelect = minPrice == '' && maxPrice == '' ? '' : 'Price between $minPrice and $maxPrice';
-    String mileageSelect = minMileage == '' && maxMileage == '' ? '' : 'Odometer_Lower_Range between $minMileage and $maxMileage';
+    String minMileageSelect = minMileage == '' ? '' : 'Odometer_Lower_Range between $minMileage and $maxMileage';
+    String maxMileageSelect = maxMileage == '' ? '' : 'Odometer_Upper_Range between $minMileage and $maxMileage';
     String paymentOptionSelect = ((paymentOption == 'Both' || paymentOption == '') ? '' : 'Payment_Method="$paymentOption"');
 
-    List<String> selectList = [brandSelect, locationSelect, yearSelect, bodyTypeSelect, priceSelect, mileageSelect, paymentOptionSelect];
+    List<String> selectList = [brandSelect, locationSelect, yearSelect, bodyTypeSelect, priceSelect, minMileageSelect, maxMileageSelect, paymentOptionSelect];
     bool nonEmptySelectFound = false;
     for(int i = 0; i < selectList.length; i++){
       if(selectList[i] != '' && nonEmptySelectFound){
-        selectList[i] = 'and ${selectList[i]}';
+        selectList[i] = ' and ${selectList[i]}';
       }
       else if(selectList[i] != ''){
         nonEmptySelectFound = true;
