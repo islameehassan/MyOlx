@@ -27,8 +27,8 @@ class _AdScreenState extends State<AdScreen> {
     carAd = widget.carAd;
     print(carAd.Selling_Price);
   }
-  Widget build(BuildContext context) {
-
+  Widget build(BuildContext context){
+    print(carAd.Engine_Capacity_Lower_Range.runtimeType);
     // A scren to display the ad details from the car ad object
     return Scaffold(
       appBar: AppBar(
@@ -183,7 +183,7 @@ class _AdScreenState extends State<AdScreen> {
                           ),
                         ),
                         Text(
-                          carAd.Odometer_Upper_Range == carAd.Odometer_Lower_Range ? '${carAd.Odometer_Upper_Range} km' : '${carAd.Odometer_Lower_Range} - ${carAd.Odometer_Upper_Range} km',
+                          (carAd.Odometer_Upper_Range == null || carAd.Odometer_Upper_Range == 'null') ? "Not Specified" : carAd.Odometer_Upper_Range == carAd.Odometer_Lower_Range ? '${carAd.Odometer_Upper_Range} km' : '${carAd.Odometer_Lower_Range} - ${carAd.Odometer_Upper_Range} km',
                           style: TextStyle(
                             fontSize: 15,
                           ),
@@ -213,7 +213,7 @@ class _AdScreenState extends State<AdScreen> {
                           ),
                         ),
                         Text(
-                          carAd.Engine_Capacity_Upper_Range == carAd.Engine_Capacity_Lower_Range ? '${carAd.Engine_Capacity_Upper_Range} CC' : '${carAd.Engine_Capacity_Lower_Range} - ${carAd.Engine_Capacity_Upper_Range} CC',
+                          (carAd.Engine_Capacity_Lower_Range == null || carAd.Engine_Capacity_Lower_Range == 'null') ? "Not Specified" : carAd.Engine_Capacity_Upper_Range == carAd.Engine_Capacity_Lower_Range ? '${carAd.Engine_Capacity_Upper_Range} CC' : '${carAd.Engine_Capacity_Lower_Range} - ${carAd.Engine_Capacity_Upper_Range} CC',
                           style: TextStyle(
                             fontSize: 15,
                           ),
