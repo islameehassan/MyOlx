@@ -30,7 +30,7 @@ class DatabaseManager{
       host: 'db4free.net',
       port: 3306,
       user: 'islam_hassan',
-      password: 'xuBmXDq4hvqs8Ks',
+      password: '', // database password here
       db: "my_olx",
       );
     try{
